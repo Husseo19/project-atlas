@@ -18,16 +18,48 @@ const supabase = createClient(
 );
 
 /**
- * Blind-solve and fact-check a question without knowing the currently assigned answer.
+ * Query official Microsoft Learn Search API for real, live, canonical documentation links.
+ */
+async function fetchMicrosoftLearnDocs(query) {
+  try {
+    const cleanQuery = query.replace(/[^\w\s\-\.]/g, ' ').trim();
+    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&$top=2`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'ProjectAtlas/1.0' } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data || !Array.isArray(data.results)) return [];
+    
+    return data.results.map(item => ({
+      title: item.title?.replace(/ - Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
+      url: item.url,
+      description: (item.description || (item.descriptions?.[0]?.content) || '').replace(/\s+/g, ' ').trim()
+    }));
+  } catch (error) {
+    console.error(`Error querying Microsoft Learn for query "${query}":`, error.message);
+    return [];
+  }
+}
+
+/**
+ * Blind-solve, fact-check, and modernize taxonomy using official Microsoft Learn standards.
  */
 async function blindSolveAndFactCheck(question, certification) {
   try {
     const prompt = `
-You are the Principal Psychometrician and Certification Subject Matter Expert for ${certification?.name || 'IT Certification'} (${certification?.exam_code || ''}).
+You are the Principal Psychometrician and Lead Technical Exam Architect for ${certification?.name || 'Microsoft Certification'} (${certification?.exam_code || 'MS-102'}).
 
-Your goal is to independently solve and rigorously fact-check the following exam question using first-principles and official documentation guidelines (e.g. Microsoft Learn, Azure Architecture Center, RFCs).
+Your goal is to independently solve, fact-check, and modernize the following certification question according to current official Microsoft Learn documentation.
 
-CRITICAL: You are solving this blindly without any pre-existing answer to ensure unbiased, 100% accurate ground-truth verification.
+TAXONOMY & BRANDING REQUIREMENTS (2024-2026 STANDARD):
+- Strictly enforce current official Microsoft branding:
+  * 'Azure Active Directory' / 'Azure AD' -> 'Microsoft Entra ID'
+  * 'Azure AD Privileged Identity Management' -> 'Microsoft Entra Privileged Identity Management (PIM)'
+  * 'Azure AD Identity Protection' -> 'Microsoft Entra ID Protection'
+  * 'Azure AD Conditional Access' -> 'Microsoft Entra Conditional Access'
+  * 'Azure AD Connect' -> 'Microsoft Entra Connect'
+  * 'Security & Compliance Center' -> 'Microsoft Defender XDR & Microsoft Purview'
+  * 'Compliance Manager' / 'Information Protection' -> 'Microsoft Purview'
+  * 'Microsoft Endpoint Manager' -> 'Microsoft Intune'
 
 QUESTION CONTENT:
 ${question.content}
@@ -39,21 +71,21 @@ AVAILABLE OPTIONS:
 ${JSON.stringify(question.options, null, 2)}
 
 TASK:
-1. Carefully analyze the scenario, technical requirements, and any exhibit references.
-2. Determine the objectively correct answer(s) strictly according to official vendor documentation.
-3. Provide the exact matching option IDs in 'solved_option_ids' (e.g. ["opt_0"] or ["opt_1", "opt_3"]).
-4. Formulate a definitive, educational proof explanation detailing why the correct choice is right and specifically refuting the distractors.
-5. Provide 1 to 3 authoritative documentation references/citations in 'official_citations' (e.g. "Microsoft Learn: Create sensitivity labels and their policies").
-6. Provide a confidence score from 0.0 to 1.0 in 'confidence_score'.
+1. Determine the objectively correct answer(s) strictly according to current Microsoft documentation.
+2. Provide matching option IDs in 'solved_option_ids' (e.g. ["opt_0"] or ["opt_1", "opt_3"]).
+3. Formulate a comprehensive, modern educational proof explanation detailing why the correct choice is right and specifically refuting distractors. Ensure all references use current Entra/Purview/Defender/Intune terminology.
+4. Provide 1 to 2 highly specific search query strings in 'learn_search_queries' (e.g. ["Microsoft Entra ID Privileged Identity Management eligible assignment", "Microsoft Purview sensitivity labels auto labeling"]) to retrieve official Microsoft Learn articles.
+5. Provide a confidence score from 0.0 to 1.0 in 'confidence_score'.
 
 Respond strictly in JSON format matching this schema:
 {
   "solved_option_ids": ["opt_..."],
   "confidence_score": 0.99,
-  "official_citations": [
-    "Microsoft Learn: Document / Feature Reference Title"
+  "learn_search_queries": [
+    "Specific Microsoft Learn search phrase 1",
+    "Specific Microsoft Learn search phrase 2"
   ],
-  "proof_explanation": "Comprehensive technical proof explaining the exact reason for the answer...",
+  "proof_explanation": "Comprehensive technical proof using modern Microsoft Entra / Purview / Defender terminology...",
   "is_question_ambiguous": false
 }
 `;
@@ -74,14 +106,33 @@ Respond strictly in JSON format matching this schema:
       messages: [
         {
           role: "system",
-          content: "You are an elite, definitive ground-truth exam verifier. Output valid, parseable JSON only."
+          content: "You are an elite, definitive ground-truth Microsoft exam verifier. Output valid, parseable JSON only."
         },
         { role: "user", content: contentPayload }
       ],
       response_format: { type: "json_object" }
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    const parsed = JSON.parse(response.choices[0].message.content);
+
+    // Stage 2: Query Microsoft Learn API with the search queries
+    const citations = [];
+    const seenUrls = new Set();
+
+    if (Array.isArray(parsed.learn_search_queries)) {
+      for (const query of parsed.learn_search_queries.slice(0, 2)) {
+        const docs = await fetchMicrosoftLearnDocs(query);
+        for (const doc of docs) {
+          if (!seenUrls.has(doc.url)) {
+            seenUrls.add(doc.url);
+            citations.push(doc);
+          }
+        }
+      }
+    }
+
+    parsed.official_citations = citations;
+    return parsed;
   } catch (error) {
     console.error(`Error blind-solving question ${question.id}:`, error);
     return null;
@@ -110,11 +161,11 @@ async function runVerificationPipeline() {
     const rl = readline.createInterface({ input, output });
 
     console.log("\n=======================================================");
-    console.log("       AI GROUND-TRUTH ANSWER VERIFICATION PIPELINE     ");
+    console.log("   MICROSOFT LEARN GROUND-TRUTH VERIFICATION PIPELINE  ");
     console.log("=======================================================\n");
 
-    examFilter = (await rl.question("1. Enter Certification Exam Code to verify (e.g. MS-102, or press Enter for ALL): ")).trim();
-    verifyAll = (await rl.question("2. Re-verify already verified questions? (y/N) [default: N]: ")).trim().toLowerCase() === 'y';
+    examFilter = (await rl.question("1. Enter Certification Exam Code (e.g. MS-102, or press Enter for ALL): ")).trim();
+    verifyAll = (await rl.question("2. Re-verify & modernize existing questions with Microsoft Learn API? (Y/n) [default: Y]: ")).trim().toLowerCase() !== 'n';
     const limitInput = (await rl.question("3. Max questions to verify (press Enter for ALL): ")).trim();
     limit = limitInput ? parseInt(limitInput, 10) : null;
 
@@ -129,7 +180,6 @@ async function runVerificationPipeline() {
     .order('created_at', { ascending: false });
 
   if (examFilter) {
-    // Lookup certification id
     const { data: cert } = await supabase.from('certifications').select('id').eq('exam_code', examFilter).single();
     if (cert) {
       query = query.eq('certification_id', cert.id);
@@ -154,11 +204,11 @@ async function runVerificationPipeline() {
   }
 
   if (questions.length === 0) {
-    console.log("No unverified questions found matching your criteria! All questions are up to date. ✨\n");
+    console.log("No questions found matching your criteria.\n");
     process.exit(0);
   }
 
-  console.log(`\nFound ${questions.length} question(s) to verify. Beginning Blind-Solve Fact-Checking Pipeline...\n`);
+  console.log(`\nFound ${questions.length} question(s) to verify against Microsoft Learn API...\n`);
 
   let verifiedCount = 0;
   let correctedCount = 0;
@@ -182,7 +232,6 @@ async function runVerificationPipeline() {
     const originalAnswers = Array.isArray(q.correct_answers) ? q.correct_answers : [];
     const solvedAnswers = result.solved_option_ids;
 
-    // Check if sets match
     const isMatch = originalAnswers.length === solvedAnswers.length &&
       originalAnswers.every(ans => solvedAnswers.includes(ans));
 
@@ -200,7 +249,10 @@ async function runVerificationPipeline() {
     }
 
     if (result.official_citations && result.official_citations.length > 0) {
-      console.log(`   Citations: ${result.official_citations.join(' | ')}`);
+      console.log(`   📚 Microsoft Learn Links (${result.official_citations.length}):`);
+      result.official_citations.forEach(c => {
+        console.log(`      - ${c.title} -> ${c.url}`);
+      });
     }
 
     // Persist verified metadata back to Supabase
@@ -221,7 +273,6 @@ async function runVerificationPipeline() {
       explanation: result.proof_explanation || q.explanation,
     };
 
-    // If discrepancy was detected, update correct_answers to the true verified solution
     if (discrepancyDetected) {
       updatePayload.correct_answers = solvedAnswers;
     }
@@ -234,7 +285,7 @@ async function runVerificationPipeline() {
     if (updateError) {
       console.error(`Failed to update question ${q.id} in Supabase:`, updateError);
     } else {
-      console.log(`   Saved verification record to database.`);
+      console.log(`   💾 Saved ground-truth record & canonical Learn links to Supabase.`);
     }
   }
 

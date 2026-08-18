@@ -151,14 +151,37 @@ export default function TrainingClient({ certificationCode, initialQuestions, se
               {formatExplanation(currentExplanation)}
             </div>
             {currentQuestion?.verification_metadata?.official_citations && currentQuestion.verification_metadata.official_citations.length > 0 && (
-              <div style={{ marginTop: '0.85rem', padding: '0.75rem', borderRadius: '8px', backgroundColor: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span>📚</span> Official Documentation References:
+              <div style={{ marginTop: '0.85rem', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(0, 120, 212, 0.04)', border: '1px solid rgba(0, 120, 212, 0.15)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>📚</span> Official Microsoft Learn References:
                 </div>
                 <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-                  {currentQuestion.verification_metadata.official_citations.map((cite: string, idx: number) => (
-                    <li key={idx} style={{ marginBottom: '0.2rem' }}>{cite}</li>
-                  ))}
+                  {currentQuestion.verification_metadata.official_citations.map((cite: any, idx: number) => {
+                    if (typeof cite === 'object' && cite.url) {
+                      return (
+                        <li key={idx} style={{ marginBottom: '0.4rem', lineHeight: '1.4' }}>
+                          <a 
+                            href={cite.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}
+                            onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                            onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                          >
+                            {cite.title || 'Microsoft Learn Article'} ↗
+                          </a>
+                          {cite.description && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.15rem' }}>
+                              {cite.description.slice(0, 150)}...
+                            </div>
+                          )}
+                        </li>
+                      )
+                    }
+                    return (
+                      <li key={idx} style={{ marginBottom: '0.2rem' }}>{cite}</li>
+                    )
+                  })}
                 </ul>
               </div>
             )}
