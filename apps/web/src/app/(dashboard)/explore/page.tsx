@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import styles from './page.module.css'
 import CertificationFilterList from '../../../components/ui/CertificationFilterList'
 import { Certification } from '../../../types'
