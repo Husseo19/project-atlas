@@ -18,8 +18,22 @@ export default function AdaptiveTrainingButton({ sessionId, certificationId }: {
       className={styles.btnPrimary} 
       onClick={handleStart}
       disabled={loading}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        background: loading ? 'linear-gradient(135deg, #4f46e5, #7c3aed)' : undefined
+      }}
     >
-      {loading ? 'Generating Adaptive Session...' : 'Start Targeted Review ✨'}
+      {loading ? (
+        <>
+          <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>✨</span>
+          <span>AI Tutor is Synthesizing Questions...</span>
+        </>
+      ) : (
+        'Start Targeted Review ✨'
+      )}
     </button>
   )
 }
