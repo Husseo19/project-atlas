@@ -22,16 +22,39 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export default function RootLayout({
+import { createClient } from '../utils/supabase/server'
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const cookieStore = cookies()
-  const theme = cookieStore.get('theme')?.value || 'light'
+  let theme = cookieStore.get('theme')?.value
+
+  if (!theme) {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('dark_mode_enabled')
+          .eq('id', user.id)
+          .single()
+        if (profile?.dark_mode_enabled) {
+          theme = 'dark'
+        }
+      }
+    } catch {
+      // Fallback to light on error
+    }
+  }
+
+  const finalTheme = theme || 'light'
 
   return (
-    <html lang="en" data-theme={theme}>
+    <html lang="en" data-theme={finalTheme}>
       <body className={inter.className}>{children}</body>
     </html>
   )

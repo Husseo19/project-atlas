@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toggleDarkMode } from '../../app/actions/theme'
 import styles from './DarkModeToggle.module.css'
 import { useRouter } from 'next/navigation'
@@ -9,6 +9,11 @@ export default function DarkModeToggle({ initialEnabled }: { initialEnabled: boo
   const [enabled, setEnabled] = useState(initialEnabled)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    setEnabled(initialEnabled)
+    document.documentElement.setAttribute('data-theme', initialEnabled ? 'dark' : 'light')
+  }, [initialEnabled])
 
   const handleToggle = async () => {
     setLoading(true)
