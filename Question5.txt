@@ -1,0 +1,23 @@
+You have a Microsoft 365 subscription.
+
+Your company has a customer ID associated to each customer. The customer IDs contain 10 numbers followed by 10 characters. The following is a sample customer ID: 12-456-7890-abc-de-fghij.
+
+You plan to create a data loss prevention (DLP) policy that will detect messages containing customer IDs.
+
+What should you create to ensure that the DLP policy can detect the customer IDs?
+
+A.
+
+a PowerShell script
+
+B.
+
+a sensitivity label
+
+C.
+
+a sensitive information type
+
+D.
+
+a retention label

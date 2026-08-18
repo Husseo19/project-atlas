@@ -1,0 +1,91 @@
+Overview -
+
+Fabrikam, Inc. is an electronics company that produces consumer products. Fabrikam has 10,000 employees worldwide.
+
+Fabrikam has a main office in London and branch offices in major cities in Europe, Asia, and the United States.
+
+Existing Environment -
+
+Active Directory Environment -
+
+The network contains an Active Directory forest named fabrikam.com. The forest contains all the identities used for user and computer authentication. Each department is represented by a top-level organizational unit (OU) that contains several child OUs for user accounts and computer accounts.
+
+All users authenticate to on-premises applications by signing in to their device by using a UPN format of username@fabrikam.com.
+
+Fabrikam does NOT plan to implement identity federation.
+
+Network Infrastructure -
+
+Each office has a high-speed connection to the Internet.
+
+Each office contains two domain controllers. All domain controllers are configured as DNS servers.
+
+The public zone for fabrikam.com is managed by an external DNS server.
+
+All users connect to an on-premises Microsoft Exchange Server 2016 organization. The users access their email by using Outlook Anywhere, Outlook on the web, or the Microsoft Outlook app for iOS. All the Exchange servers have the latest cumulative updates installed.
+
+All shared company documents are stored on a Microsoft SharePoint Server farm.
+
+Requirements -
+
+Planned Changes -
+
+Fabrikam plans to implement a Microsoft 365 Enterprise subscription and move all email and shared documents to the subscription.
+
+Fabrikam plans to implement two pilot projects:
+
+Project1: During Project1, the mailboxes of 100 users in the sales department will be moved to Microsoft 365.
+
+Project2: After the successful completion of Project1, Microsoft Teams will be enabled in Microsoft 365 for the sales department users.
+
+Fabrikam plans to create a group named UserLicenses that will manage the allocation of all Microsoft 365 bulk licenses.
+
+Technical Requirements -
+
+Fabrikam identifies the following technical requirements:
+
+All users must be able to exchange email messages successfully during Project1 by using their current email address.
+
+Users must be able to authenticate to cloud services if Active Directory becomes unavailable.
+
+A user named User1 must be able to view all DLP reports from the Microsoft Purview compliance portal.
+
+Microsoft 365 Apps for enterprise applications must be installed from a network share only.
+
+Disruptions to email access must be minimized.
+
+Application Requirements -
+
+Fabrikam identifies the following application requirements:
+
+An on-premises web application named App1 must allow users to complete their expense reports online. App1 must be available to users from the My Apps portal.
+
+The installation of feature updates for Microsoft 365 Apps for enterprise must be minimized.
+
+Security Requirements -
+
+Fabrikam identifies the following security requirements:
+
+After the planned migration to Microsoft 365, all users must continue to authenticate to their mailbox and to SharePoint sites by using their UPN.
+
+The membership of the UserLicenses group must be validated monthly. Unused user accounts must be removed from the group automatically.
+
+After the planned migration to Microsoft 365, all users must be signed in to on-premises and cloud-based applications automatically.
+
+The principle of least privilege must be used.
+
+You are evaluating the required processes for Project1.
+
+You need to recommend which DNS record must be created while adding a domain name for the project.
+
+Which DNS record should you recommend?
+
+Answer: 
+
+host (A)
+
+host information (HINFO)
+
+text (TXT)
+
+pointer (PTR)

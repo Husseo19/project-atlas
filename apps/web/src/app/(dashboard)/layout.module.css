@@ -1,0 +1,23 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-subtle);
+}
+
+.contentWrapper {
+  flex: 1;
+  display: flex;
+}
+
+.main {
+  flex: 1;
+  padding: 2rem 0;
+  padding-bottom: calc(2rem + 70px); /* Account for bottom navigation on mobile */
+}
+
+@media (min-width: 768px) {
+  .main {
+    padding-bottom: 2rem;
+  }
+}

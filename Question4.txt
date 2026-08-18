@@ -1,0 +1,19 @@
+HOTSPOT -
+
+You have a Microsoft 365 tenant.
+
+You create a retention label as shown in the Retention Label exhibit. (Click the Retention Label tab.)
+(IMAGE HERE)
+
+You create a label policy as shown in the Label Policy exhibit. (Click the Label Policy tab.)
+(IMAGE HERE)
+
+The label policy is configured as shown in the following table.
+
+(IMAGE HERE)
+For each of the following statements, select Yes if the statement is true. Otherwise, select No.
+
+NOTE: Each correct selection is worth one point.
+
+(IMAGE HERE)
+

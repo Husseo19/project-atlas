@@ -1,0 +1,37 @@
+HOTSPOT -
+
+Your company has a Microsoft 365 E5 tenant
+
+Users at the company use the following versions of Microsoft Office:
+
+Microsoft 365 Apps for enterprise
+
+Office for the web -
+
+Office 2016 -
+
+Office 2019 -
+
+The company currently uses the following Office file types:
+
+.docx
+
+.xlsx
+
+.doc
+
+.xls
+
+You plan to use sensitivity labels.
+
+You need to identify the following:
+
+Which versions of Office require an add-in to support the sensitivity labels.
+
+Which file types support the sensitivity labels.
+
+What should you identify? To answer, select the appropriate options in the answer area.
+
+NOTE: Each correct selection is worth one point.
+
+(IMAGE HERE)
