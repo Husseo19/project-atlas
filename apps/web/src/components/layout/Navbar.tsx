@@ -9,8 +9,10 @@ export default async function Navbar() {
   const { data: { user } } = await supabase.auth.getUser()
   
   let name = 'Student'
+  let isAdmin = false
   if (user) {
     name = user.user_metadata?.full_name || user.email || 'Student'
+    isAdmin = user.email === process.env.ADMIN_EMAIL || user.email === 'husseo19@gmail.com'
   }
   
   const initials = name.substring(0, 1).toUpperCase()
@@ -29,6 +31,7 @@ export default async function Navbar() {
           <Link href="/dashboard" className={styles.link}>Dashboard</Link>
           <Link href="/explore" className={styles.link}>Explore</Link>
           <Link href="/community" className={styles.link}>Community</Link>
+          {isAdmin && <Link href="/admin" className={styles.link}>Admin</Link>}
         </div>
 
         <div className={styles.actions}>

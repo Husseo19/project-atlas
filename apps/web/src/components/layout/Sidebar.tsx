@@ -5,19 +5,19 @@ export default function Sidebar() {
   return (
     <aside className={styles.sidebar}>
       <nav className={styles.nav}>
-        <Link href="/dashboard" className={styles.active}>
+        <Link href="/dashboard" className={styles.link}>
           <span className={styles.icon}>🏠</span>
           <span className={styles.text}>Dashboard</span>
         </Link>
-        <Link href="/dashboard" className={styles.link}>
-          <span className={styles.icon}>📚</span>
-          <span className={styles.text}>My Certs</span>
+        <Link href="/explore" className={styles.link}>
+          <span className={styles.icon}>🧭</span>
+          <span className={styles.text}>Explore</span>
         </Link>
-        <Link href="/dashboard" className={styles.link}>
-          <span className={styles.icon}>⏱️</span>
-          <span className={styles.text}>History</span>
+        <Link href="/community" className={styles.link}>
+          <span className={styles.icon}>💬</span>
+          <span className={styles.text}>Community</span>
         </Link>
-        <Link href="/dashboard" className={styles.link}>
+        <Link href="/settings" className={styles.link}>
           <span className={styles.icon}>⚙️</span>
           <span className={styles.text}>Settings</span>
         </Link>
