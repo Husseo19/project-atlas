@@ -7,6 +7,20 @@ import OpenAI from 'openai'
 import { getApiKeyAction } from './actions/auth'
 import { redirect } from 'next/navigation'
 
+export async function getAdminCertifications() {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('certifications')
+    .select('id, name, exam_code, provider')
+    .order('name', { ascending: true })
+  
+  if (error) {
+    console.error("Error fetching certifications for admin:", error)
+    return []
+  }
+  return data || []
+}
+
 export async function startExamSession(certificationId: string) {
   const supabase = createClient()
   

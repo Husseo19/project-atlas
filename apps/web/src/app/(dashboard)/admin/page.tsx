@@ -2,7 +2,7 @@
 
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react'
 import styles from './admin.module.css'
-import { uploadSyllabusAction } from '../../actions'
+import { uploadSyllabusAction, getAdminCertifications } from '../../actions'
 
 export default function AdminDashboard() {
   const [isDragging, setIsDragging] = useState(false)
@@ -22,11 +22,10 @@ export default function AdminDashboard() {
   const [selectedCertId, setSelectedCertId] = useState<string>('')
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/certifications`)
-      .then(res => res.json())
+    getAdminCertifications()
       .then(data => {
         setCertifications(data)
-        if (data.length > 0) setSelectedCertId(data[0].id)
+        if (data && data.length > 0) setSelectedCertId(data[0].id)
       })
       .catch(err => console.error("Failed to load certifications", err))
   }, [])
