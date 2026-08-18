@@ -489,6 +489,89 @@ export async function getSessionResult(sessionId: string) {
   }
 }
 
+export async function getSessionReviewData(sessionId: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: session, error: sessionError } = await supabase
+    .from('sessions')
+    .select('*, certifications(id, name, exam_code, provider)')
+    .eq('id', sessionId)
+    .single()
+
+  if (sessionError || !session) throw new Error('Session not found')
+
+  const questionIds = session.questions || []
+  if (questionIds.length === 0) {
+    return {
+      session: {
+        ...session,
+        totalQuestions: 0,
+        correctCount: 0,
+        incorrectCount: 0
+      },
+      certification: session.certifications,
+      items: []
+    }
+  }
+
+  const { data: questions, error: qError } = await supabase
+    .from('questions')
+    .select('*')
+    .in('id', questionIds)
+
+  if (qError || !questions) throw new Error('Questions not found')
+
+  const questionMap = new Map<string, any>(questions.map(q => [q.id, q]))
+  const userAnswers: Record<string, string[]> = session.answers || {}
+
+  // Fetch objectives for this certification to display domain labels
+  const { data: objectives } = await supabase
+    .from('study_objectives')
+    .select('id, code, description')
+    .eq('certification_id', session.certification_id)
+
+  const objectiveMap = new Map<string, any>((objectives || []).map(o => [o.id, o]))
+
+  const items = questionIds.map((qId: string, idx: number) => {
+    const q = questionMap.get(qId)
+    if (!q) return null
+    
+    const userAns = Array.isArray(userAnswers[qId]) ? userAnswers[qId] : []
+    const correctAns = Array.isArray(q.correct_answers) ? q.correct_answers : (q.correctAnswer ? [q.correctAnswer] : [])
+
+    const sortedUser = [...userAns].sort()
+    const sortedCorrect = [...correctAns].sort()
+    const isCorrect = sortedUser.length > 0 && JSON.stringify(sortedUser) === JSON.stringify(sortedCorrect)
+    const objective = q.objective_id ? objectiveMap.get(q.objective_id) : null
+
+    return {
+      index: idx + 1,
+      question: q,
+      userAnswer: userAns,
+      correctAnswers: correctAns,
+      isCorrect,
+      objective
+    }
+  }).filter(Boolean)
+
+  const totalQuestions = items.length
+  const correctCount = items.filter((i: any) => i?.isCorrect).length
+  const incorrectCount = totalQuestions - correctCount
+
+  return {
+    session: {
+      ...session,
+      totalQuestions,
+      correctCount,
+      incorrectCount
+    },
+    certification: session.certifications,
+    items
+  }
+}
+
 export async function getComments(questionId: string) {
   const supabase = createClient()
   const { data, error } = await supabase

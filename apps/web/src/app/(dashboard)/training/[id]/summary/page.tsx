@@ -33,6 +33,8 @@ export default async function TrainingSummaryPage({
   const insights = result.metadata?.insights
   const hasInsights = insights && !insights.includes("Please add your OpenAI API Key")
 
+  const incorrectAnswers = result.totalQuestions - result.correctAnswers
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -68,16 +70,44 @@ export default async function TrainingSummaryPage({
               </div>
               <div className={styles.statBox}>
                 <span className={styles.statLabel}>Correct</span>
-                <span className={styles.statValue}>{result.correctAnswers}</span>
+                <span className={styles.statValue} style={{ color: '#10b981' }}>{result.correctAnswers}</span>
+              </div>
+              <div className={styles.statBox}>
+                <span className={styles.statLabel}>Missed</span>
+                <span className={styles.statValue} style={{ color: '#ef4444' }}>{incorrectAnswers}</span>
               </div>
             </div>
           </div>
           
           <div className={styles.actionCard}>
             <h3 className={styles.actionTitle}>Next Steps</h3>
-            <p className={styles.actionDesc}>Ready to tackle your weak points? Launch a targeted session powered by AI.</p>
+            <p className={styles.actionDesc}>Review your answers or launch an AI-targeted adaptive session.</p>
+            
+            {incorrectAnswers > 0 ? (
+              <Link 
+                href={`/training/${params.id}/review?session_id=${result.sessionId}&filter=incorrect`}
+                className={styles.btnPrimary}
+                style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)' }}
+              >
+                🔍 Review Missed Questions ({incorrectAnswers})
+              </Link>
+            ) : (
+              <div style={{ color: '#10b981', fontWeight: 600, marginBottom: '1rem', fontSize: '0.95rem' }}>
+                🎉 Perfect Score! No missed questions.
+              </div>
+            )}
+
+            <Link 
+              href={`/training/${params.id}/review?session_id=${result.sessionId}&filter=all`}
+              className={styles.btnSecondary}
+              style={{ marginBottom: '1rem', display: 'block' }}
+            >
+              📖 Review All Questions ({result.totalQuestions})
+            </Link>
+
             <AdaptiveTrainingButton sessionId={result.sessionId} certificationId={params.id} />
-            <Link href="/dashboard" className={styles.btnSecondary}>
+
+            <Link href="/dashboard" className={styles.btnSecondary} style={{ marginTop: '0.5rem', display: 'block' }}>
               Back to Dashboard
             </Link>
           </div>
