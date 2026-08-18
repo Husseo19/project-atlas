@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isSuccess, setIsSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -28,7 +29,7 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient()
-      const { error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -43,7 +44,13 @@ export default function RegisterPage() {
         return
       }
 
-      // If email confirmation is off, this logs them in. Redirect to dashboard.
+      // If email confirmation is required, session will be null
+      if (!data.session) {
+        setIsSuccess(true)
+        return
+      }
+
+      // If email confirmation is off / auto-confirmed, session exists:
       router.push('/dashboard')
       router.refresh()
     } catch {
@@ -51,6 +58,27 @@ export default function RegisterPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isSuccess) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.formWrapper} style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✉️</div>
+          <h1 className={styles.title}>Check your email</h1>
+          <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+            We've sent a verification link to <strong>{email}</strong>. Please confirm your email to activate your account.
+          </p>
+          <Link 
+            href="/login" 
+            className={styles.submitBtn} 
+            style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}
+          >
+            Back to Sign in
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
