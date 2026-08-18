@@ -53,9 +53,15 @@
 }
 
 .links {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .links {
+    display: flex;
+  }
 }
 
 .link {
