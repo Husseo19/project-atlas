@@ -101,55 +101,182 @@ export async function submitExamSession(sessionId: string, answers: Record<strin
   return { success: true }
 }
 
-export async function startTrainingSession(certificationId: string) {
+export async function getCertificationTrainingMeta(certificationCodeOrId: string) {
   const supabase = createClient()
   
+  // Resolve certification by id or exam_code
+  let certQuery = supabase.from('certifications').select('*')
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(certificationCodeOrId)) {
+    certQuery = certQuery.eq('id', certificationCodeOrId)
+  } else {
+    certQuery = certQuery.eq('exam_code', certificationCodeOrId)
+  }
+  
+  const { data: cert, error: certError } = await certQuery.single()
+  if (certError || !cert) {
+    throw new Error('Certification not found')
+  }
+
+  // Get current user and dark mode preference
+  const { data: { user } } = await supabase.auth.getUser()
+  let source = 'official'
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('dark_mode_enabled').eq('id', user.id).single()
+    if (profile?.dark_mode_enabled) {
+      source = 'dump'
+    }
+  }
+
+  // Fetch objectives for this certification
+  const { data: objectives } = await supabase
+    .from('study_objectives')
+    .select('id, code, description')
+    .eq('certification_id', cert.id)
+    .order('code', { ascending: true })
+
+  // Fetch questions count for this certification and source
+  const { data: questions } = await supabase
+    .from('questions')
+    .select('id, objective_id')
+    .eq('certification_id', cert.id)
+    .eq('source', source)
+
+  const questionList = questions || []
+  const objectiveMap = new Map<string, number>()
+  let unassignedCount = 0
+
+  questionList.forEach(q => {
+    if (q.objective_id) {
+      objectiveMap.set(q.objective_id, (objectiveMap.get(q.objective_id) || 0) + 1)
+    } else {
+      unassignedCount++
+    }
+  })
+
+  const objectivesWithCounts = (objectives || []).map(obj => ({
+    id: obj.id,
+    code: obj.code,
+    description: obj.description,
+    question_count: objectiveMap.get(obj.id) || 0
+  }))
+
+  return {
+    certification: cert,
+    objectives: objectivesWithCounts,
+    unassignedQuestionCount: unassignedCount,
+    totalQuestions: questionList.length,
+    source
+  }
+}
+
+export async function startCustomTrainingSession(params: {
+  certificationId: string,
+  selectedObjectiveIds?: string[],
+  includeUnassigned?: boolean,
+  questionCount?: number,
+  isRandomized?: boolean,
+  filterMode?: 'all' | 'missed' | 'unanswered'
+}) {
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     throw new Error('You must be logged in to start a training session.')
   }
-  const userId = user.id
 
-  // Check if dark mode (dump mode) is enabled
-  const { data: profile } = await supabase.from('profiles').select('dark_mode_enabled').eq('id', userId).single()
+  // Check dark mode preference
+  const { data: profile } = await supabase.from('profiles').select('dark_mode_enabled').eq('id', user.id).single()
   const source = profile?.dark_mode_enabled ? 'dump' : 'official'
 
-  const { data: questions, error: qError } = await supabase
+  const query = supabase
     .from('questions')
     .select('*')
-    .eq('certification_id', certificationId)
+    .eq('certification_id', params.certificationId)
     .eq('source', source)
 
-  if (qError || !questions || questions.length === 0) {
-    throw new Error('No questions available for this certification')
+  const { data: allQuestions, error: qError } = await query
+
+  if (qError || !allQuestions || allQuestions.length === 0) {
+    throw new Error('No questions available matching your criteria.')
   }
-  
-  // Pick up to 25 random questions for a training session
-  const shuffled = questions.sort(() => 0.5 - Math.random()).slice(0, 25)
-  const questionIds = shuffled.map(q => q.id)
+
+  let filteredPool = allQuestions
+
+  // Filter by selected objectives if provided
+  if (params.selectedObjectiveIds && params.selectedObjectiveIds.length > 0) {
+    const objSet = new Set(params.selectedObjectiveIds)
+    filteredPool = filteredPool.filter(q => {
+      if (q.objective_id && objSet.has(q.objective_id)) return true
+      if (!q.objective_id && params.includeUnassigned) return true
+      return false
+    })
+  }
+
+  // If filteredPool is empty, fallback to all available
+  if (filteredPool.length === 0) {
+    filteredPool = allQuestions
+  }
+
+  // Filter by history (unanswered) if requested
+  if (params.filterMode === 'unanswered') {
+    const { data: pastSessions } = await supabase
+      .from('sessions')
+      .select('answers')
+      .eq('user_id', user.id)
+      .eq('certification_id', params.certificationId)
+
+    if (pastSessions && pastSessions.length > 0) {
+      const answeredQuestionIds = new Set<string>()
+      pastSessions.forEach(s => {
+        if (s.answers && typeof s.answers === 'object') {
+          Object.keys(s.answers).forEach(qid => answeredQuestionIds.add(qid))
+        }
+      })
+
+      const unseen = filteredPool.filter(q => !answeredQuestionIds.has(q.id))
+      if (unseen.length > 0) {
+        filteredPool = unseen
+      }
+    }
+  }
+
+  // Randomize with Fisher-Yates shuffle if requested
+  const isRandom = params.isRandomized !== false
+  if (isRandom) {
+    for (let i = filteredPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [filteredPool[i], filteredPool[j]] = [filteredPool[j], filteredPool[i]];
+    }
+  }
+
+  const requestedCount = params.questionCount || 25
+  const finalQuestions = filteredPool.slice(0, requestedCount)
+  const questionIds = finalQuestions.map(q => q.id)
 
   const sessionId = uuidv4()
-  
   const { error: sessionError } = await supabase
     .from('sessions')
     .insert({
       id: sessionId,
-      user_id: userId,
-      certification_id: certificationId,
+      user_id: user.id,
+      certification_id: params.certificationId,
       mode: 'training',
       status: 'in_progress',
       questions: questionIds
     })
-    
+
   if (sessionError) {
     console.error("Session creation error:", sessionError)
-    throw new Error('Failed to create training session')
+    throw new Error('Failed to create custom training session')
   }
-  
+
   return {
     sessionId,
-    questions: shuffled
+    questions: finalQuestions
   }
+}
+
+export async function startTrainingSession(certificationId: string) {
+  return startCustomTrainingSession({ certificationId, questionCount: 25, isRandomized: true })
 }
 
 export async function submitTrainingSession(sessionId: string, answers: Record<string, string[]>) {

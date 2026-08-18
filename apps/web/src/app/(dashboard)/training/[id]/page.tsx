@@ -1,5 +1,7 @@
-import { startTrainingSession, startAdaptiveTrainingSession } from '../../../actions'
-import TrainingClient from '../../../../components/exam/TrainingClient'
+export const dynamic = 'force-dynamic'
+
+import { getCertificationTrainingMeta, startAdaptiveTrainingSession } from '../../../actions'
+import TrainingSessionController from '../../../../components/exam/TrainingSessionController'
 import styles from './page.module.css'
 
 export default async function TrainingSessionPage({ 
@@ -10,24 +12,25 @@ export default async function TrainingSessionPage({
   searchParams: { adaptive_from?: string }
 }) {
   try {
-    let sessionData;
+    const meta = await getCertificationTrainingMeta(params.id)
+    
+    let initialSessionData;
     if (searchParams.adaptive_from) {
-      sessionData = await startAdaptiveTrainingSession(searchParams.adaptive_from)
-    } else {
-      sessionData = await startTrainingSession(params.id)
+      initialSessionData = await startAdaptiveTrainingSession(searchParams.adaptive_from)
     }
-    
-    const { sessionId, questions } = sessionData
-    
+
     return (
-      <TrainingClient 
-        certificationCode={params.id} 
-        initialQuestions={questions}
-        sessionId={sessionId}
+      <TrainingSessionController 
+        certification={meta.certification}
+        objectives={meta.objectives}
+        unassignedQuestionCount={meta.unassignedQuestionCount}
+        totalQuestions={meta.totalQuestions}
+        source={meta.source}
+        initialSessionData={initialSessionData}
       />
     )
   } catch (error: any) {
-    console.error("Failed to start training session:", error)
+    console.error("Failed to load training session:", error)
     return (
       <div className={styles.container}>
         <div className={styles.error}>
