@@ -18,18 +18,30 @@ const supabase = createClient(
 );
 
 /**
- * Query official Microsoft Learn Search API for real, live, canonical documentation links.
+ * Query official Microsoft Learn Search API with semantic scoring and documentation-only filters.
  */
 async function fetchMicrosoftLearnDocs(query) {
   try {
     const cleanQuery = query.replace(/[^\w\s\-\.]/g, ' ').trim();
-    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&$top=2`;
+    // Query with category=Documentation and scoring=semantic to retrieve deep technical articles
+    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&category=Documentation&scoring=semantic&$top=6`;
     const res = await fetch(url, { headers: { 'User-Agent': 'ProjectAtlas/1.0' } });
     if (!res.ok) return [];
     const data = await res.json();
     if (!data || !Array.isArray(data.results)) return [];
     
-    return data.results.map(item => ({
+    // Filter out generic root hubs and exam study-guide landing pages
+    const filtered = data.results.filter(item => {
+      if (!item.url) return false;
+      const u = item.url.toLowerCase();
+      // Exclude generic landing pages
+      if (u.includes('/credentials/certifications/resources/study-guides/')) return false;
+      if (u.endsWith('/purview/purview') || u.endsWith('/entra/identity/') || u.endsWith('/intune/')) return false;
+      if (u.endsWith('/microsoft-365/admin/') || u.endsWith('/overview')) return false;
+      return true;
+    });
+
+    return filtered.slice(0, 3).map(item => ({
       title: item.title?.replace(/ - Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
       url: item.url,
       description: (item.description || (item.descriptions?.[0]?.content) || '').replace(/\s+/g, ' ').trim()
@@ -74,7 +86,13 @@ TASK:
 1. Determine the objectively correct answer(s) strictly according to current Microsoft documentation.
 2. Provide matching option IDs in 'solved_option_ids' (e.g. ["opt_0"] or ["opt_1", "opt_3"]).
 3. Formulate a comprehensive, modern educational proof explanation detailing why the correct choice is right and specifically refuting distractors. Ensure all references use current Entra/Purview/Defender/Intune terminology.
-4. Provide 1 to 2 highly specific search query strings in 'learn_search_queries' (e.g. ["Microsoft Entra ID Privileged Identity Management eligible assignment", "Microsoft Purview sensitivity labels auto labeling"]) to retrieve official Microsoft Learn articles.
+4. Provide 1 to 2 HIGHLY SPECIFIC, ACTION-ORIENTED search query strings in 'learn_search_queries'.
+   - MANDATE: Query MUST target the exact technical procedure, PowerShell cmdlet, setting, or admin center blade being tested.
+   - Example Good Queries:
+     * "Configure auto-labeling policies for SharePoint in Microsoft Purview"
+     * "Activate Microsoft Entra roles in PIM"
+     * "Create compliance policy for iOS devices Microsoft Intune"
+   - STRICTLY FORBIDDEN: Broad product names or exam codes (e.g. NEVER output "Microsoft Purview", "Microsoft Entra ID", or "MS-102").
 5. Provide a confidence score from 0.0 to 1.0 in 'confidence_score'.
 
 Respond strictly in JSON format matching this schema:
@@ -82,8 +100,8 @@ Respond strictly in JSON format matching this schema:
   "solved_option_ids": ["opt_..."],
   "confidence_score": 0.99,
   "learn_search_queries": [
-    "Specific Microsoft Learn search phrase 1",
-    "Specific Microsoft Learn search phrase 2"
+    "Exact technical procedure query 1",
+    "Exact technical procedure query 2"
   ],
   "proof_explanation": "Comprehensive technical proof using modern Microsoft Entra / Purview / Defender terminology...",
   "is_question_ambiguous": false
@@ -115,7 +133,7 @@ Respond strictly in JSON format matching this schema:
 
     const parsed = JSON.parse(response.choices[0].message.content);
 
-    // Stage 2: Query Microsoft Learn API with the search queries
+    // Stage 2: Query Microsoft Learn API with the specific procedural search queries
     const citations = [];
     const seenUrls = new Set();
 

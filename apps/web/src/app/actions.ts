@@ -397,18 +397,28 @@ Please provide a short, encouraging summary of their performance. Identify their
 }
 
 /**
- * Query official Microsoft Learn Search API for real, live, canonical documentation links.
+ * Query official Microsoft Learn Search API with semantic scoring and documentation-only filters.
  */
 async function fetchMicrosoftLearnDocsApi(query: string) {
   try {
     const cleanQuery = query.replace(/[^\w\s\-\.]/g, ' ').trim()
-    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&$top=2`
+    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&category=Documentation&scoring=semantic&$top=6`
     const res = await fetch(url, { headers: { 'User-Agent': 'ProjectAtlas/1.0' }, next: { revalidate: 3600 } })
     if (!res.ok) return []
     const data = await res.json()
     if (!data || !Array.isArray(data.results)) return []
     
-    return data.results.map((item: any) => ({
+    // Filter out generic root hubs and exam study-guide landing pages
+    const filtered = data.results.filter((item: any) => {
+      if (!item.url) return false
+      const u = item.url.toLowerCase()
+      if (u.includes('/credentials/certifications/resources/study-guides/')) return false
+      if (u.endsWith('/purview/purview') || u.endsWith('/entra/identity/') || u.endsWith('/intune/')) return false
+      if (u.endsWith('/microsoft-365/admin/') || u.endsWith('/overview')) return false
+      return true
+    })
+
+    return filtered.slice(0, 3).map((item: any) => ({
       title: item.title?.replace(/ - Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
       url: item.url,
       description: (item.description || (item.descriptions?.[0]?.content) || '').replace(/\s+/g, ' ').trim()
@@ -472,10 +482,14 @@ Respond strictly in JSON format matching this schema:
   "correct_answers": ["B"],
   "explanation": "Comprehensive technical explanation detailing why B is correct and why A, C, and D are incorrect.",
   "learn_search_queries": [
-    "Specific Microsoft Learn search phrase 1",
-    "Specific Microsoft Learn search phrase 2"
+    "Exact technical procedure query 1",
+    "Exact technical procedure query 2"
   ]
 }
+
+MANDATE FOR 'learn_search_queries':
+Provide 1 to 2 HIGHLY SPECIFIC, ACTION-ORIENTED search queries targeting the exact technical procedure, setting, cmdlet, or admin center blade (e.g. 'Configure auto-labeling policies for SharePoint in Microsoft Purview', 'Activate Microsoft Entra roles in PIM').
+NEVER output broad product names or general exam codes like 'Microsoft Purview' or 'MS-102'.
 `
 
     try {
