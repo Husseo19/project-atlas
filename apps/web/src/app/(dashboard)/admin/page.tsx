@@ -2,7 +2,7 @@
 
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react'
 import styles from './admin.module.css'
-import { uploadSyllabusAction, getAdminCertifications } from '../../actions'
+import { uploadSyllabusAction, getAdminCertifications, generateBulkQuestionsAction } from '../../actions'
 
 export default function AdminDashboard() {
   const [isDragging, setIsDragging] = useState(false)
@@ -88,39 +88,36 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleGenerateBank = (certIdToUse?: string) => {
+  const handleGenerateBank = async (certIdToUse?: string) => {
     const cid = certIdToUse || uploadResult?.certification_id
     if (!cid) return
     
     setIsGenerating(true)
     setGenerateProgress(0)
-    setGenerateStatus('Connecting to AI factory...')
+    setGenerateStatus('🚀 Initializing Enterprise Question Factory & Microsoft Learn RAG...')
     setGenerateError('')
 
-    const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/generate-questions-bulk?certification_id=${cid}&count=${generateTotal}`)
-    
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      if (data.error) {
-        setGenerateError(data.error)
-      }
-      if (data.status) {
-        setGenerateStatus(data.status)
-        if (data.status === 'Complete') {
-          eventSource.close()
-          setIsGenerating(false)
-        }
-      }
-      if (data.progress) {
-        setGenerateProgress(data.progress)
-        setGenerateTotal(data.total)
-        setGenerateStatus(`Generating for objective: ${data.current_objective}`)
-      }
-    }
+    try {
+      setGenerateStatus('Synthesizing authentic multi-type questions (MultipleChoice, MultipleResponse, Hotspots, Sequences)...')
+      setGenerateProgress(Math.floor(generateTotal * 0.3))
+      
+      const res = await generateBulkQuestionsAction({
+        certificationId: cid,
+        count: generateTotal
+      })
 
-    eventSource.onerror = (error) => {
-      setGenerateError('Connection lost or failed.')
-      eventSource.close()
+      if (res && res.success) {
+        setGenerateProgress(generateTotal)
+        setGenerateStatus(`✅ Successfully generated ${res.totalGenerated} high-fidelity questions with Microsoft Learn citations!`)
+        setTimeout(() => {
+          setIsGenerating(false)
+        }, 2000)
+      } else {
+        throw new Error('Bulk generation failed')
+      }
+    } catch (err: any) {
+      console.error("Bulk generation error:", err)
+      setGenerateError(err.message || 'Generation failed. Please verify OpenAI API key is set.')
       setIsGenerating(false)
     }
   }

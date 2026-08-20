@@ -429,8 +429,41 @@ async function fetchMicrosoftLearnDocsApi(query: string) {
   }
 }
 
+const QUESTION_TYPE_TEMPLATES: Record<string, string> = {
+  MultipleChoice: `
+- QUESTION FORMAT: MultipleChoice (Single Select)
+- Craft a realistic 2-paragraph enterprise scenario (e.g. 5,000 users, Microsoft 365 E5 / Entra ID P2, hybrid environment).
+- Include specific constraints: "You need to achieve this with least administrative effort." or "with least privilege."
+- Provide exactly 4 options with IDs "opt_0", "opt_1", "opt_2", "opt_3".
+- Exactly 1 correct option ID in correct_answers.
+`,
+  MultipleResponse: `
+- QUESTION FORMAT: MultipleResponse (Multi-Select)
+- Craft a scenario requiring composite actions (e.g. 2 or 3 interdependent configuration steps).
+- Prompt MUST end with: "Which two actions should you perform? Each correct answer presents part of the solution." (or "Which three actions...").
+- Provide 5 or 6 options with IDs "opt_0" through "opt_4" (or "opt_5").
+- Exactly 2 or 3 correct option IDs in correct_answers.
+`,
+  FillInTheBlank: `
+- QUESTION FORMAT: FillInTheBlank (Hotspot / Dropdown Matrix)
+- Craft a scenario with a formatted statement or table containing exactly 2 or 3 "___" inline dropdown placeholders.
+- Example structure in content:
+  To configure the policy in Microsoft Purview:
+  1. Under Target Locations, select: ___
+  2. Under Protection Actions, select: ___
+- The options array must list all selectable dropdown choices (4 to 8 choices with IDs "opt_0", "opt_1", etc.).
+- correct_answers must contain the option IDs corresponding to each "___" blank in sequential order.
+`,
+  DragAndDrop: `
+- QUESTION FORMAT: DragAndDrop (Ordered Process / Sequence)
+- Prompt MUST end with: "Which four actions should you perform in sequence? To answer, arrange the appropriate actions in the correct order."
+- Provide 4 to 6 action options (e.g. PowerShell cmdlets or onboarding steps).
+- correct_answers must list the option IDs in the EXACT sequential order of execution (e.g. ["opt_2", "opt_0", "opt_3", "opt_1"]).
+`
+}
+
 /**
- * On-demand AI Question Generation Agent for Personalized Targeted Review.
+ * On-demand AI Question Generation Agent with Microsoft Learn RAG and Diverse Question Types.
  */
 async function generateTargetedAdaptiveQuestions({
   certificationId,
@@ -455,48 +488,62 @@ async function generateTargetedAdaptiveQuestions({
   const certName = cert?.name || 'Microsoft Certification'
   const examCode = cert?.exam_code || 'MS-102'
 
+  const TYPE_ROTATION = ["MultipleChoice", "MultipleChoice", "MultipleResponse", "FillInTheBlank", "DragAndDrop"]
+
   for (let i = 0; i < count; i++) {
     const targetObj = targetObjectives[i % targetObjectives.length]
     const objCode = targetObj.code || 'Domain'
     const objDesc = targetObj.description || 'Core Concepts'
+    const chosenType = TYPE_ROTATION[i % TYPE_ROTATION.length]
+    const typeInstruction = QUESTION_TYPE_TEMPLATES[chosenType] || QUESTION_TYPE_TEMPLATES.MultipleChoice
+
+    // 1. RAG query Microsoft Learn for official context
+    const docs = await fetchMicrosoftLearnDocsApi(`${objCode} ${objDesc}`)
+    const ragSnippet = docs.length > 0
+      ? "\nOFFICIAL MICROSOFT LEARN REFERENCE CONTEXT:\n" + docs.map((d: any) => `- ${d.title}: ${d.description}`).join('\n')
+      : ""
 
     const prompt = `
-You are the Lead Exam Psychometrician and Subject Matter Expert for ${certName} (${examCode}).
-The candidate recently struggled with the following study objective:
-Objective Code: ${objCode}
-Objective Description: ${objDesc}
+You are the Principal Exam Psychometrician and Subject Matter Expert authoring an authentic Microsoft Certification Exam question for ${certName} (${examCode}).
 
-Generate 1 highly realistic, scenario-based practice question targeting this specific objective.
-Strictly enforce modern Microsoft 2024-2026 taxonomy (e.g. Microsoft Entra ID, Microsoft Entra PIM, Microsoft Purview, Microsoft Intune, Microsoft Defender XDR).
+TARGET STUDY OBJECTIVE:
+Code: ${objCode}
+Description: ${objDesc}
+${ragSnippet}
+
+${typeInstruction}
+
+STRICT TAXONOMY RULES (2024-2026):
+- 'Azure AD' -> 'Microsoft Entra ID'
+- 'Azure AD Privileged Identity Management' -> 'Microsoft Entra Privileged Identity Management (PIM)'
+- 'Compliance Center' -> 'Microsoft Purview portal'
+- 'Endpoint Manager' -> 'Microsoft Intune'
+- 'Defender' -> 'Microsoft Defender XDR'
 
 Respond strictly in JSON format matching this schema:
 {
-  "content": "You manage a Microsoft 365 tenant... (detailed realistic scenario with technical requirements)",
-  "type": "MultipleChoice",
+  "content": "Full question prompt including scenario...",
+  "type": "${chosenType}",
   "options": [
-    { "id": "A", "text": "Option text 1..." },
-    { "id": "B", "text": "Option text 2..." },
-    { "id": "C", "text": "Option text 3..." },
-    { "id": "D", "text": "Option text 4..." }
+    { "id": "opt_0", "text": "Option text 1..." },
+    { "id": "opt_1", "text": "Option text 2..." },
+    { "id": "opt_2", "text": "Option text 3..." },
+    { "id": "opt_3", "text": "Option text 4..." }
   ],
-  "correct_answers": ["B"],
-  "explanation": "Comprehensive technical explanation detailing why B is correct and why A, C, and D are incorrect.",
+  "correct_answers": ["opt_1"],
+  "explanation": "Comprehensive technical proof explaining the exact solution and refuting distractors.",
   "learn_search_queries": [
-    "Exact technical procedure query 1",
-    "Exact technical procedure query 2"
+    "Specific technical procedure query 1",
+    "Specific technical procedure query 2"
   ]
 }
-
-MANDATE FOR 'learn_search_queries':
-Provide 1 to 2 HIGHLY SPECIFIC, ACTION-ORIENTED search queries targeting the exact technical procedure, setting, cmdlet, or admin center blade (e.g. 'Configure auto-labeling policies for SharePoint in Microsoft Purview', 'Activate Microsoft Entra roles in PIM').
-NEVER output broad product names or general exam codes like 'Microsoft Purview' or 'MS-102'.
 `
 
     try {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: 'You are an elite exam author. Output valid, parseable JSON only.' },
+          { role: 'system', content: 'You are an elite Microsoft exam author. Output valid, parseable JSON only.' },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' }
@@ -506,14 +553,14 @@ NEVER output broad product names or general exam codes like 'Microsoft Purview' 
       const parsed = JSON.parse(raw)
 
       if (parsed.content && Array.isArray(parsed.options) && Array.isArray(parsed.correct_answers)) {
-        // Fetch real Microsoft Learn citations
+        // Fetch verified Microsoft Learn citations
         const citations: any[] = []
         const seenUrls = new Set<string>()
 
         if (Array.isArray(parsed.learn_search_queries)) {
           for (const sq of parsed.learn_search_queries.slice(0, 2)) {
-            const docs = await fetchMicrosoftLearnDocsApi(sq)
-            for (const doc of docs) {
+            const searchDocs = await fetchMicrosoftLearnDocsApi(sq)
+            for (const doc of searchDocs) {
               if (!seenUrls.has(doc.url)) {
                 seenUrls.add(doc.url)
                 citations.push(doc)
@@ -522,11 +569,16 @@ NEVER output broad product names or general exam codes like 'Microsoft Purview' 
           }
         }
 
+        // Fallback to RAG docs if queries returned 0
+        if (citations.length === 0 && docs.length > 0) {
+          citations.push(...docs.slice(0, 2))
+        }
+
         const newQData = {
           certification_id: certificationId,
           objective_id: targetObj.id && targetObj.id.length === 36 ? targetObj.id : null,
           content: parsed.content,
-          type: parsed.type || (parsed.correct_answers.length > 1 ? 'MultipleResponse' : 'MultipleChoice'),
+          type: parsed.type || chosenType,
           options: parsed.options,
           correct_answers: parsed.correct_answers,
           explanation: parsed.explanation,
@@ -554,11 +606,55 @@ NEVER output broad product names or general exam codes like 'Microsoft Purview' 
         }
       }
     } catch (err) {
-      console.error("Error synthesizing adaptive question:", err)
+      console.error("Error synthesizing multi-type adaptive question:", err)
     }
   }
 
   return generatedQuestions
+}
+
+export async function generateBulkQuestionsAction({
+  certificationId,
+  count = 25
+}: {
+  certificationId: string
+  count?: number
+}) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase.from('profiles').select('is_admin, bypass_byo_key').eq('id', user.id).single()
+  if (!profile?.is_admin) throw new Error('Admin access required')
+
+  let apiKey = await getApiKeyAction()
+  if (!apiKey && (profile?.bypass_byo_key || profile?.is_admin)) {
+    apiKey = process.env.OPENAI_API_KEY || null
+  }
+  if (!apiKey) throw new Error('OpenAI API key required for bulk generation')
+
+  const { data: objectives, error: objErr } = await supabase
+    .from('study_objectives')
+    .select('id, code, description')
+    .eq('certification_id', certificationId)
+    .order('code', { ascending: true })
+
+  if (objErr || !objectives || objectives.length === 0) {
+    throw new Error('No study objectives found for this certification. Please upload a syllabus first.')
+  }
+
+  const generated = await generateTargetedAdaptiveQuestions({
+    certificationId,
+    targetObjectives: objectives,
+    apiKey,
+    count
+  })
+
+  return {
+    success: true,
+    totalGenerated: generated.length,
+    questions: generated
+  }
 }
 
 export async function startAdaptiveTrainingSession(previousSessionId: string) {
