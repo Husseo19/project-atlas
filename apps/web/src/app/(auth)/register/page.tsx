@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
 import styles from './register.module.css'
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTarget = searchParams.get('redirect') || '/dashboard'
+
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -51,7 +54,7 @@ export default function RegisterPage() {
       }
 
       // If email confirmation is off / auto-confirmed, session exists:
-      router.push('/dashboard')
+      router.push(redirectTarget)
       router.refresh()
     } catch {
       setError('Something went wrong. Please try again.')
@@ -70,7 +73,7 @@ export default function RegisterPage() {
             We've sent a verification link to <strong>{email}</strong>. Please confirm your email to activate your account.
           </p>
           <Link 
-            href="/login" 
+            href={redirectTarget !== '/dashboard' ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : '/login'} 
             className={styles.submitBtn} 
             style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}
           >
@@ -142,9 +145,20 @@ export default function RegisterPage() {
           </button>
         </form>
         <p className={styles.footer}>
-          Already have an account? <Link href="/login" className={styles.link}>Sign in</Link>
+          Already have an account?{' '}
+          <Link href={redirectTarget !== '/dashboard' ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : '/login'} className={styles.link}>
+            Sign in
+          </Link>
         </p>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className={styles.container}><div className={styles.formWrapper}><h1 className={styles.title}>Loading...</h1></div></div>}>
+      <RegisterForm />
+    </Suspense>
   )
 }

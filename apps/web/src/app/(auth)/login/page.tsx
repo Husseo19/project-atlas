@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase/client'
 import styles from './login.module.css'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTarget = searchParams.get('redirect') || '/dashboard'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +33,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push('/dashboard')
+      router.push(redirectTarget)
       router.refresh()
     } catch {
       setError('Something went wrong. Please try again.')
@@ -107,8 +110,18 @@ export default function LoginPage() {
 
       <p className={styles.footer}>
         Don&apos;t have an account?{' '}
-        <Link href="/register">Create account</Link>
+        <Link href={redirectTarget !== '/dashboard' ? `/register?redirect=${encodeURIComponent(redirectTarget)}` : '/register'}>
+          Create account
+        </Link>
       </p>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className={styles.formCard}><div className={styles.header}><h1 className={styles.title}>Loading...</h1></div></div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
