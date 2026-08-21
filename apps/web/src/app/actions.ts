@@ -485,31 +485,33 @@ const QUESTION_TYPE_TEMPLATES: Record<string, { instruction: string, schemaExamp
     instruction: `
 - QUESTION FORMAT: FillInTheBlank (Hotspot / Dropdown Matrix)
 - Craft a scenario with a formatted statement or table containing exactly 2 or 3 "___" inline dropdown placeholders.
-- The prompt content MUST start with "HOTSPOT -" and contain numbered lines with "___" blanks.
+- The prompt content MUST start with "HOTSPOT -" followed by a realistic enterprise scenario, and then numbered lines with specific technical requirement descriptions and "___" blanks.
   Example:
   HOTSPOT -
-  You manage a Microsoft 365 tenant.
-  How should you configure the settings? To answer, select the appropriate options from the dropdown menus.
+  Your company has a Microsoft 365 E5 subscription.
+  You need to configure sensitivity label policies in Microsoft Purview to protect SharePoint Online sites and Exchange emails.
+  How should you configure the policy settings? To answer, select the appropriate options from the dropdown menus.
 
-  1. For setting A, select: ___
-  2. For setting B, select: ___
+  1. To enforce encryption on files uploaded to SharePoint, set the Scope setting to: ___
+  2. To apply labels automatically based on sensitive info types, set the Auto-labeling condition to: ___
 - The options array must list all selectable dropdown choices (4 to 6 choices with IDs "opt_0", "opt_1", etc.).
 - correct_answers must contain the option IDs corresponding to each "___" blank in sequential order.
+- CRITICAL: Do NOT use placeholder text like 'setting A' or 'setting B'—always write specific, realistic technical requirements!
 `,
     schemaExample: `{
-  "content": "HOTSPOT -\\nYou manage a Microsoft 365 tenant.\\nHow should you configure the settings? To answer, select the appropriate options from the dropdown menus.\\n\\n1. For setting A, select: ___\\n2. For setting B, select: ___",
+  "content": "HOTSPOT -\\nYour company has a Microsoft 365 E5 subscription.\\nYou need to configure sensitivity label policies in Microsoft Purview.\\nHow should you configure the settings? To answer, select the appropriate options from the dropdown menus.\\n\\n1. To enforce encryption on files in SharePoint, set Scope to: ___\\n2. To apply labels automatically based on content, set Auto-labeling to: ___",
   "type": "FillInTheBlank",
   "options": [
-    { "id": "opt_0", "text": "Target Setting Value 1" },
-    { "id": "opt_1", "text": "Target Setting Value 2" },
-    { "id": "opt_2", "text": "Distractor Setting Value 3" },
-    { "id": "opt_3", "text": "Distractor Setting Value 4" }
+    { "id": "opt_0", "text": "Files & other data assets" },
+    { "id": "opt_1", "text": "Automatically apply the label when content matches" },
+    { "id": "opt_2", "text": "Schematized data assets only" },
+    { "id": "opt_3", "text": "Recommend that users apply the label" }
   ],
   "correct_answers": ["opt_0", "opt_1"],
-  "explanation": "Detailed technical explanation for each blank and why the chosen options are correct.",
+  "explanation": "Detailed technical explanation for each blank proving why the selected values meet the requirements.",
   "learn_search_queries": [
-    "Specific technical procedure query 1",
-    "Specific technical procedure query 2"
+    "Configure sensitivity labels for SharePoint in Microsoft Purview",
+    "Auto-labeling policies in Microsoft Purview"
   ]
 }`
   },
@@ -517,24 +519,26 @@ const QUESTION_TYPE_TEMPLATES: Record<string, { instruction: string, schemaExamp
     instruction: `
 - QUESTION FORMAT: DragAndDrop (Ordered Process / Sequence)
 - Prompt MUST end with: "Which four actions should you perform in sequence? To answer, arrange the appropriate actions in the correct order."
-- Provide 4 to 6 action options with IDs "opt_0", "opt_1", "opt_2", "opt_3", "opt_4".
+- Provide 5 or 6 realistic, concrete action options with IDs "opt_0", "opt_1", "opt_2", "opt_3", "opt_4".
+- 4 actions must be the correct steps, and 1 or 2 actions must be plausible realistic distractors (e.g. legacy tools, wrong cmdlets, or wrong admin blades).
 - correct_answers MUST list the option IDs in the EXACT sequential order of execution (e.g. ["opt_3", "opt_0", "opt_1", "opt_2"]).
+- CRITICAL: Every option must describe a real technical action. NEVER output placeholder phrases like 'Irrelevant distractor action' or 'Step X'.
 `,
     schemaExample: `{
-  "content": "You need to implement [Technical Process].\\nWhich four actions should you perform in sequence? To answer, arrange the appropriate actions in the correct order.",
+  "content": "You need to configure Microsoft Entra Privileged Identity Management (PIM) for Azure resources.\\nWhich four actions should you perform in sequence? To answer, arrange the appropriate actions in the correct order.",
   "type": "DragAndDrop",
   "options": [
-    { "id": "opt_0", "text": "Step 2: Create the policy profile in the admin center." },
-    { "id": "opt_1", "text": "Step 3: Configure the required protection settings." },
-    { "id": "opt_2", "text": "Step 4: Assign the policy to the target security group." },
-    { "id": "opt_3", "text": "Step 1: Connect to Microsoft Graph PowerShell and authenticate." },
-    { "id": "opt_4", "text": "Irrelevant distractor action..." }
+    { "id": "opt_0", "text": "Discover and manage the target Azure subscription in PIM." },
+    { "id": "opt_1", "text": "Select the Owner role and click Add assignments." },
+    { "id": "opt_2", "text": "Select the target security group and set the Assignment type to Eligible." },
+    { "id": "opt_3", "text": "Sign in to the Microsoft Entra admin center as a Privileged Role Administrator." },
+    { "id": "opt_4", "text": "Assign the Classic Administrators co-administrator role in Azure portal." }
   ],
   "correct_answers": ["opt_3", "opt_0", "opt_1", "opt_2"],
-  "explanation": "The proper implementation sequence is 1) Connect and authenticate, 2) Create the profile, 3) Configure settings, and 4) Assign to group.",
+  "explanation": "The correct implementation sequence is: 1) Sign in as Privileged Role Administrator, 2) Discover the resource in PIM, 3) Select the role and add assignment, and 4) Set assignment type to Eligible.",
   "learn_search_queries": [
-    "Specific technical procedure query 1",
-    "Specific technical procedure query 2"
+    "Manage Azure resources in Privileged Identity Management",
+    "Assign Microsoft Entra roles in PIM"
   ]
 }`
   }
