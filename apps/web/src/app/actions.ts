@@ -429,37 +429,115 @@ async function fetchMicrosoftLearnDocsApi(query: string) {
   }
 }
 
-const QUESTION_TYPE_TEMPLATES: Record<string, string> = {
-  MultipleChoice: `
+const QUESTION_TYPE_TEMPLATES: Record<string, { instruction: string, schemaExample: string }> = {
+  MultipleChoice: {
+    instruction: `
 - QUESTION FORMAT: MultipleChoice (Single Select)
 - Craft a realistic 2-paragraph enterprise scenario (e.g. 5,000 users, Microsoft 365 E5 / Entra ID P2, hybrid environment).
 - Include specific constraints: "You need to achieve this with least administrative effort." or "with least privilege."
 - Provide exactly 4 options with IDs "opt_0", "opt_1", "opt_2", "opt_3".
 - Exactly 1 correct option ID in correct_answers.
 `,
-  MultipleResponse: `
+    schemaExample: `{
+  "content": "Realistic enterprise scenario prompt ending with: What should you do?",
+  "type": "MultipleChoice",
+  "options": [
+    { "id": "opt_0", "text": "Plausible distractor 1..." },
+    { "id": "opt_1", "text": "Correct optimal solution..." },
+    { "id": "opt_2", "text": "Plausible distractor 2..." },
+    { "id": "opt_3", "text": "Plausible distractor 3..." }
+  ],
+  "correct_answers": ["opt_1"],
+  "explanation": "Authoritative technical explanation proving why opt_1 is correct and refuting opt_0, opt_2, opt_3.",
+  "learn_search_queries": [
+    "Specific technical procedure query 1",
+    "Specific technical procedure query 2"
+  ]
+}`
+  },
+  MultipleResponse: {
+    instruction: `
 - QUESTION FORMAT: MultipleResponse (Multi-Select)
-- Craft a scenario requiring composite actions (e.g. 2 or 3 interdependent configuration steps).
+- Craft a scenario requiring composite configuration (e.g. 2 or 3 interdependent steps).
 - Prompt MUST end with: "Which two actions should you perform? Each correct answer presents part of the solution." (or "Which three actions...").
-- Provide 5 or 6 options with IDs "opt_0" through "opt_4" (or "opt_5").
-- Exactly 2 or 3 correct option IDs in correct_answers.
+- Provide 5 or 6 options with IDs "opt_0", "opt_1", "opt_2", "opt_3", "opt_4".
+- Exactly 2 or 3 matching option IDs in correct_answers.
 `,
-  FillInTheBlank: `
+    schemaExample: `{
+  "content": "Realistic enterprise scenario prompt ending with: Which two actions should you perform? Each correct answer presents part of the solution.",
+  "type": "MultipleResponse",
+  "options": [
+    { "id": "opt_0", "text": "First required action..." },
+    { "id": "opt_1", "text": "Plausible distractor action..." },
+    { "id": "opt_2", "text": "Second required action..." },
+    { "id": "opt_3", "text": "Plausible distractor action 2..." },
+    { "id": "opt_4", "text": "Plausible distractor action 3..." }
+  ],
+  "correct_answers": ["opt_0", "opt_2"],
+  "explanation": "Comprehensive technical proof explaining why opt_0 and opt_2 form the complete solution and refuting the others.",
+  "learn_search_queries": [
+    "Specific technical procedure query 1",
+    "Specific technical procedure query 2"
+  ]
+}`
+  },
+  FillInTheBlank: {
+    instruction: `
 - QUESTION FORMAT: FillInTheBlank (Hotspot / Dropdown Matrix)
 - Craft a scenario with a formatted statement or table containing exactly 2 or 3 "___" inline dropdown placeholders.
-- Example structure in content:
-  To configure the policy in Microsoft Purview:
-  1. Under Target Locations, select: ___
-  2. Under Protection Actions, select: ___
-- The options array must list all selectable dropdown choices (4 to 8 choices with IDs "opt_0", "opt_1", etc.).
+- The prompt content MUST start with "HOTSPOT -" and contain numbered lines with "___" blanks.
+  Example:
+  HOTSPOT -
+  You manage a Microsoft 365 tenant.
+  How should you configure the settings? To answer, select the appropriate options from the dropdown menus.
+
+  1. For setting A, select: ___
+  2. For setting B, select: ___
+- The options array must list all selectable dropdown choices (4 to 6 choices with IDs "opt_0", "opt_1", etc.).
 - correct_answers must contain the option IDs corresponding to each "___" blank in sequential order.
 `,
-  DragAndDrop: `
+    schemaExample: `{
+  "content": "HOTSPOT -\\nYou manage a Microsoft 365 tenant.\\nHow should you configure the settings? To answer, select the appropriate options from the dropdown menus.\\n\\n1. For setting A, select: ___\\n2. For setting B, select: ___",
+  "type": "FillInTheBlank",
+  "options": [
+    { "id": "opt_0", "text": "Target Setting Value 1" },
+    { "id": "opt_1", "text": "Target Setting Value 2" },
+    { "id": "opt_2", "text": "Distractor Setting Value 3" },
+    { "id": "opt_3", "text": "Distractor Setting Value 4" }
+  ],
+  "correct_answers": ["opt_0", "opt_1"],
+  "explanation": "Detailed technical explanation for each blank and why the chosen options are correct.",
+  "learn_search_queries": [
+    "Specific technical procedure query 1",
+    "Specific technical procedure query 2"
+  ]
+}`
+  },
+  DragAndDrop: {
+    instruction: `
 - QUESTION FORMAT: DragAndDrop (Ordered Process / Sequence)
 - Prompt MUST end with: "Which four actions should you perform in sequence? To answer, arrange the appropriate actions in the correct order."
-- Provide 4 to 6 action options (e.g. PowerShell cmdlets or onboarding steps).
-- correct_answers must list the option IDs in the EXACT sequential order of execution (e.g. ["opt_2", "opt_0", "opt_3", "opt_1"]).
-`
+- Provide 4 to 6 action options with IDs "opt_0", "opt_1", "opt_2", "opt_3", "opt_4".
+- correct_answers MUST list the option IDs in the EXACT sequential order of execution (e.g. ["opt_3", "opt_0", "opt_1", "opt_2"]).
+`,
+    schemaExample: `{
+  "content": "You need to implement [Technical Process].\\nWhich four actions should you perform in sequence? To answer, arrange the appropriate actions in the correct order.",
+  "type": "DragAndDrop",
+  "options": [
+    { "id": "opt_0", "text": "Step 2: Create the policy profile in the admin center." },
+    { "id": "opt_1", "text": "Step 3: Configure the required protection settings." },
+    { "id": "opt_2", "text": "Step 4: Assign the policy to the target security group." },
+    { "id": "opt_3", "text": "Step 1: Connect to Microsoft Graph PowerShell and authenticate." },
+    { "id": "opt_4", "text": "Irrelevant distractor action..." }
+  ],
+  "correct_answers": ["opt_3", "opt_0", "opt_1", "opt_2"],
+  "explanation": "The proper implementation sequence is 1) Connect and authenticate, 2) Create the profile, 3) Configure settings, and 4) Assign to group.",
+  "learn_search_queries": [
+    "Specific technical procedure query 1",
+    "Specific technical procedure query 2"
+  ]
+}`
+  }
 }
 
 /**
@@ -469,12 +547,14 @@ async function generateTargetedAdaptiveQuestions({
   certificationId,
   targetObjectives,
   apiKey,
-  count = 5
+  count = 5,
+  globalOffset = 0
 }: {
   certificationId: string
   targetObjectives: Array<{ id: string, code?: string, description?: string }>
   apiKey: string
   count?: number
+  globalOffset?: number
 }) {
   const openai = new OpenAI({ apiKey })
   const generatedQuestions = []
@@ -488,14 +568,14 @@ async function generateTargetedAdaptiveQuestions({
   const certName = cert?.name || 'Microsoft Certification'
   const examCode = cert?.exam_code || 'MS-102'
 
-  const TYPE_ROTATION = ["MultipleChoice", "MultipleChoice", "MultipleResponse", "FillInTheBlank", "DragAndDrop"]
+  const TYPE_ROTATION = ["MultipleChoice", "MultipleResponse", "FillInTheBlank", "DragAndDrop"]
 
   for (let i = 0; i < count; i++) {
     const targetObj = targetObjectives[i % targetObjectives.length]
     const objCode = targetObj.code || 'Domain'
     const objDesc = targetObj.description || 'Core Concepts'
-    const chosenType = TYPE_ROTATION[i % TYPE_ROTATION.length]
-    const typeInstruction = QUESTION_TYPE_TEMPLATES[chosenType] || QUESTION_TYPE_TEMPLATES.MultipleChoice
+    const chosenType = TYPE_ROTATION[(globalOffset + i) % TYPE_ROTATION.length]
+    const typeConfig = QUESTION_TYPE_TEMPLATES[chosenType] || QUESTION_TYPE_TEMPLATES.MultipleChoice
 
     // 1. RAG query Microsoft Learn for official context
     const docs = await fetchMicrosoftLearnDocsApi(`${objCode} ${objDesc}`)
@@ -511,7 +591,7 @@ Code: ${objCode}
 Description: ${objDesc}
 ${ragSnippet}
 
-${typeInstruction}
+${typeConfig.instruction}
 
 STRICT TAXONOMY RULES (2024-2026):
 - 'Azure AD' -> 'Microsoft Entra ID'
@@ -521,29 +601,14 @@ STRICT TAXONOMY RULES (2024-2026):
 - 'Defender' -> 'Microsoft Defender XDR'
 
 Respond strictly in JSON format matching this schema:
-{
-  "content": "Full question prompt including scenario...",
-  "type": "${chosenType}",
-  "options": [
-    { "id": "opt_0", "text": "Option text 1..." },
-    { "id": "opt_1", "text": "Option text 2..." },
-    { "id": "opt_2", "text": "Option text 3..." },
-    { "id": "opt_3", "text": "Option text 4..." }
-  ],
-  "correct_answers": ["opt_1"],
-  "explanation": "Comprehensive technical proof explaining the exact solution and refuting distractors.",
-  "learn_search_queries": [
-    "Specific technical procedure query 1",
-    "Specific technical procedure query 2"
-  ]
-}
+${typeConfig.schemaExample}
 `
 
     try {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: 'You are an elite Microsoft exam author. Output valid, parseable JSON only.' },
+          { role: 'system', content: `You are an elite Microsoft exam author specializing in authentic ${chosenType} exam items. Output valid, parseable JSON only.` },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' }
@@ -552,7 +617,7 @@ Respond strictly in JSON format matching this schema:
       const raw = completion.choices[0].message.content || '{}'
       const parsed = JSON.parse(raw)
 
-      if (parsed.content && Array.isArray(parsed.options) && Array.isArray(parsed.correct_answers)) {
+      if (parsed.content && Array.isArray(parsed.options) && Array.isArray(parsed.correct_answers) && parsed.correct_answers.length > 0) {
         // Fetch verified Microsoft Learn citations
         const citations: any[] = []
         const seenUrls = new Set<string>()
@@ -578,7 +643,7 @@ Respond strictly in JSON format matching this schema:
           certification_id: certificationId,
           objective_id: targetObj.id && targetObj.id.length === 36 ? targetObj.id : null,
           content: parsed.content,
-          type: parsed.type || chosenType,
+          type: chosenType,
           difficulty: parsed.difficulty || 2,
           options: parsed.options,
           correct_answers: parsed.correct_answers,
@@ -658,7 +723,8 @@ export async function generateBulkBatchAction({
     certificationId,
     targetObjectives: sliceObjectives,
     apiKey,
-    count: batchSize
+    count: batchSize,
+    globalOffset: offset
   })
 
   const lastObj = sliceObjectives[sliceObjectives.length - 1]
@@ -671,6 +737,7 @@ export async function generateBulkBatchAction({
     lastType: lastQ?.type || 'MultipleChoice'
   }
 }
+
 
 export async function generateBulkQuestionsAction({
   certificationId,

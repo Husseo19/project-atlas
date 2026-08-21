@@ -220,7 +220,7 @@ async def generate_questions_bulk(
             
         yield f"data: {json.dumps({'status': 'Started', 'total': count})}\n\n"
         
-        QUESTION_TYPES = ["MultipleChoice", "MultipleChoice", "MultipleResponse", "FillInTheBlank", "DragAndDrop"]
+        QUESTION_TYPES = ["MultipleChoice", "MultipleResponse", "FillInTheBlank", "DragAndDrop"]
 
         for i in range(count):
             obj = objectives[i % len(objectives)]
