@@ -2,7 +2,7 @@
 
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react'
 import styles from './admin.module.css'
-import { uploadSyllabusAction, getAdminCertifications, generateBulkQuestionsAction } from '../../actions'
+import { uploadSyllabusAction, getAdminCertifications, generateBulkBatchAction } from '../../actions'
 
 export default function AdminDashboard() {
   const [isDragging, setIsDragging] = useState(false)
@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const [generateTotal, setGenerateTotal] = useState(50)
   const [generateStatus, setGenerateStatus] = useState('')
   const [generateError, setGenerateError] = useState('')
+  const isStoppingRef = useRef(false)
   
   const [certifications, setCertifications] = useState<any[]>([])
   const [selectedCertId, setSelectedCertId] = useState<string>('')
@@ -43,49 +44,51 @@ export default function AdminDashboard() {
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0])
-      setUrl('')
     }
   }
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
-      setUrl('')
     }
   }
 
   const handleUpload = async () => {
-    if (!file && !url) return
+    if (!file && !url) {
+      alert('Please select a file or enter a valid URL')
+      return
+    }
 
     setIsUploading(true)
-    
+    setUploadResult(null)
+
     try {
+      const formData = new FormData()
       if (file) {
-        const formData = new FormData()
         formData.append('file', file)
-        
-        const data = await uploadSyllabusAction(formData)
-        setUploadResult(data)
-      } else {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/ingest-url`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
-        })
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => null)
-          throw new Error(errorData?.detail || 'Ingestion failed')
-        }
-        const data = await res.json()
-        setUploadResult(data)
+      } else if (url) {
+        formData.append('url', url)
       }
+
+      const data = await uploadSyllabusAction(formData)
+      setUploadResult(data)
+      getAdminCertifications().then(data => {
+        setCertifications(data)
+        if (data && data.length > 0) setSelectedCertId(data[0].id)
+      })
     } catch (error: any) {
+      console.error('Upload failed:', error)
       alert(`Failed to process syllabus: ${error.message}`)
     } finally {
       setIsUploading(false)
     }
+  }
+
+  const handleStopGenerating = () => {
+    isStoppingRef.current = true
+    setGenerateStatus('Pausing generation... (already generated questions are saved)')
   }
 
   const handleGenerateBank = async (certIdToUse?: string) => {
@@ -96,25 +99,42 @@ export default function AdminDashboard() {
     setGenerateProgress(0)
     setGenerateStatus('🚀 Initializing Enterprise Question Factory & Microsoft Learn RAG...')
     setGenerateError('')
+    isStoppingRef.current = false
+
+    const totalToGenerate = generateTotal
+    const BATCH_SIZE = 2
+    let completed = 0
 
     try {
-      setGenerateStatus('Synthesizing authentic multi-type questions (MultipleChoice, MultipleResponse, Hotspots, Sequences)...')
-      setGenerateProgress(Math.floor(generateTotal * 0.3))
-      
-      const res = await generateBulkQuestionsAction({
-        certificationId: cid,
-        count: generateTotal
-      })
-
-      if (res && res.success) {
-        setGenerateProgress(generateTotal)
-        setGenerateStatus(`✅ Successfully generated ${res.totalGenerated} high-fidelity questions with Microsoft Learn citations!`)
-        setTimeout(() => {
+      while (completed < totalToGenerate) {
+        if (isStoppingRef.current) {
+          setGenerateStatus(`⏸️ Generation stopped at ${completed}/${totalToGenerate} questions. All saved to DB!`)
           setIsGenerating(false)
-        }, 2000)
-      } else {
-        throw new Error('Bulk generation failed')
+          return
+        }
+
+        const currentBatch = Math.min(BATCH_SIZE, totalToGenerate - completed)
+        setGenerateStatus(`Synthesizing batch ${completed + 1}–${completed + currentBatch} of ${totalToGenerate} with Microsoft Learn RAG...`)
+
+        const res = await generateBulkBatchAction({
+          certificationId: cid,
+          batchSize: currentBatch,
+          offset: completed
+        })
+
+        if (!res || !res.success) {
+          throw new Error('Batch generation encountered an error')
+        }
+
+        completed += res.batchGenerated
+        setGenerateProgress(completed)
+        setGenerateStatus(`[${res.lastType}] Generated ${completed}/${totalToGenerate}: ${res.lastObjective}`)
       }
+
+      setGenerateStatus(`🎉 Complete! Successfully generated ${completed} authentic multi-type questions with Microsoft Learn citations!`)
+      setTimeout(() => {
+        setIsGenerating(false)
+      }, 3000)
     } catch (err: any) {
       console.error("Bulk generation error:", err)
       setGenerateError(err.message || 'Generation failed. Please verify OpenAI API key is set.')
@@ -154,13 +174,23 @@ export default function AdminDashboard() {
             min={1} max={500}
             disabled={isGenerating}
           />
-          <button 
-            className={styles.btnSuccess} 
-            onClick={() => handleGenerateBank(selectedCertId)}
-            disabled={isGenerating || !selectedCertId}
-          >
-            {isGenerating ? 'Generating...' : 'Generate AI Bank'}
-          </button>
+          {isGenerating ? (
+            <button 
+              className={styles.btnSuccess} 
+              style={{ background: '#dc2626', borderColor: '#b91c1c' }}
+              onClick={handleStopGenerating}
+            >
+              Stop / Pause
+            </button>
+          ) : (
+            <button 
+              className={styles.btnSuccess} 
+              onClick={() => handleGenerateBank(selectedCertId)}
+              disabled={!selectedCertId}
+            >
+              Generate AI Bank
+            </button>
+          )}
         </div>
 
         {isGenerating && !uploadResult && (

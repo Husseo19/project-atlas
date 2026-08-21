@@ -579,6 +579,7 @@ Respond strictly in JSON format matching this schema:
           objective_id: targetObj.id && targetObj.id.length === 36 ? targetObj.id : null,
           content: parsed.content,
           type: parsed.type || chosenType,
+          difficulty: parsed.difficulty || 2,
           options: parsed.options,
           correct_answers: parsed.correct_answers,
           explanation: parsed.explanation,
@@ -601,7 +602,9 @@ Respond strictly in JSON format matching this schema:
           .select()
           .single()
 
-        if (!saveErr && savedQ) {
+        if (saveErr) {
+          console.error("Supabase question insertion error:", saveErr)
+        } else if (savedQ) {
           generatedQuestions.push(savedQ)
         }
       }
@@ -611,6 +614,62 @@ Respond strictly in JSON format matching this schema:
   }
 
   return generatedQuestions
+}
+
+export async function generateBulkBatchAction({
+  certificationId,
+  batchSize = 2,
+  offset = 0
+}: {
+  certificationId: string
+  batchSize?: number
+  offset?: number
+}) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase.from('profiles').select('is_admin, bypass_byo_key').eq('id', user.id).single()
+  if (!profile?.is_admin) throw new Error('Admin access required')
+
+  let apiKey = await getApiKeyAction()
+  if (!apiKey && (profile?.bypass_byo_key || profile?.is_admin)) {
+    apiKey = process.env.OPENAI_API_KEY || null
+  }
+  if (!apiKey) throw new Error('OpenAI API key required for bulk generation')
+
+  const { data: objectives, error: objErr } = await supabase
+    .from('study_objectives')
+    .select('id, code, description')
+    .eq('certification_id', certificationId)
+    .order('code', { ascending: true })
+
+  if (objErr || !objectives || objectives.length === 0) {
+    throw new Error('No study objectives found for this certification. Please upload a syllabus first.')
+  }
+
+  // Pick slice of objectives starting from offset
+  const sliceObjectives = []
+  for (let i = 0; i < batchSize; i++) {
+    sliceObjectives.push(objectives[(offset + i) % objectives.length])
+  }
+
+  const generated = await generateTargetedAdaptiveQuestions({
+    certificationId,
+    targetObjectives: sliceObjectives,
+    apiKey,
+    count: batchSize
+  })
+
+  const lastObj = sliceObjectives[sliceObjectives.length - 1]
+  const lastQ = generated[generated.length - 1]
+
+  return {
+    success: true,
+    batchGenerated: generated.length,
+    lastObjective: lastObj ? `${lastObj.code}: ${lastObj.description}` : 'Core Concept',
+    lastType: lastQ?.type || 'MultipleChoice'
+  }
 }
 
 export async function generateBulkQuestionsAction({
