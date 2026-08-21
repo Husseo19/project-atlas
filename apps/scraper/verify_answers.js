@@ -34,15 +34,19 @@ async function fetchMicrosoftLearnDocs(query) {
     const filtered = data.results.filter(item => {
       if (!item.url) return false;
       const u = item.url.toLowerCase();
-      // Exclude generic landing pages
       if (u.includes('/credentials/certifications/resources/study-guides/')) return false;
-      if (u.endsWith('/purview/purview') || u.endsWith('/entra/identity/') || u.endsWith('/intune/')) return false;
-      if (u.endsWith('/microsoft-365/admin/') || u.endsWith('/overview')) return false;
+      if (u.includes('/training/paths/')) return false;
+      if (u.includes('/dotnet/') || u.includes('/power-apps/') || u.includes('/power-platform/') || u.includes('/fabric/') || u.includes('/azure/architecture/')) return false;
+      
+      const pathParts = u.replace(/^https?:\/\/learn\.microsoft\.com\/[a-z]{2}-[a-z]{2}\//, '').split('/').filter(Boolean);
+      if (pathParts.length < 2) return false;
+      
+      if (u.endsWith('/overview') || u.endsWith('/purview') || u.endsWith('/entra') || u.endsWith('/intune') || u.endsWith('/microsoft-365')) return false;
       return true;
     });
 
     return filtered.slice(0, 3).map(item => ({
-      title: item.title?.replace(/ - Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
+      title: item.title?.replace(/ - Microsoft Learn$/, '').replace(/ \| Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
       url: item.url,
       description: (item.description || (item.descriptions?.[0]?.content) || '').replace(/\s+/g, ' ').trim()
     }));

@@ -397,29 +397,41 @@ Please provide a short, encouraging summary of their performance. Identify their
 }
 
 /**
- * Query official Microsoft Learn Search API with semantic scoring and documentation-only filters.
+ * Query official Microsoft Learn Search API with semantic scoring and precision documentation-only deep filters.
  */
 async function fetchMicrosoftLearnDocsApi(query: string) {
   try {
     const cleanQuery = query.replace(/[^\w\s\-\.]/g, ' ').trim()
-    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&category=Documentation&scoring=semantic&$top=6`
+    const url = `https://learn.microsoft.com/api/search?search=${encodeURIComponent(cleanQuery)}&locale=en-us&category=Documentation&scoring=semantic&$top=8`
     const res = await fetch(url, { headers: { 'User-Agent': 'ProjectAtlas/1.0' }, next: { revalidate: 3600 } })
     if (!res.ok) return []
     const data = await res.json()
     if (!data || !Array.isArray(data.results)) return []
     
-    // Filter out generic root hubs and exam study-guide landing pages
+    // Strict precision filter: exclude broad root landing hubs and irrelevant categories
     const filtered = data.results.filter((item: any) => {
       if (!item.url) return false
       const u = item.url.toLowerCase()
+      
+      // Filter out root hubs and general documentation homepages
       if (u.includes('/credentials/certifications/resources/study-guides/')) return false
-      if (u.endsWith('/purview/purview') || u.endsWith('/entra/identity/') || u.endsWith('/intune/')) return false
-      if (u.endsWith('/microsoft-365/admin/') || u.endsWith('/overview')) return false
+      if (u.includes('/training/paths/')) return false
+      if (u.includes('/dotnet/') || u.includes('/power-apps/') || u.includes('/power-platform/') || u.includes('/fabric/') || u.includes('/azure/architecture/')) return false
+      
+      // Exclude generic landing directories (e.g. /admin/, /security/, /entra/, /purview/)
+      const pathParts = u.replace(/^https?:\/\/learn\.microsoft\.com\/[a-z]{2}-[a-z]{2}\//, '').replace(/\/$/, '').split('/').filter(Boolean)
+      if (pathParts.length < 2) return false
+      if (pathParts.length === 2 && ['admin', 'security', 'copilot', 'purview', 'entra', 'intune', 'fundamentals', 'architecture', 'commerce', 'sharepoint', 'exchange'].includes(pathParts[1])) {
+        return false
+      }
+      
+      if (u.endsWith('/overview') || u.endsWith('/purview') || u.endsWith('/entra') || u.endsWith('/intune') || u.endsWith('/microsoft-365')) return false
+      
       return true
     })
 
     return filtered.slice(0, 3).map((item: any) => ({
-      title: item.title?.replace(/ - Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
+      title: item.title?.replace(/ - Microsoft Learn$/, '').replace(/ \| Microsoft Learn$/, '') || 'Microsoft Learn Documentation',
       url: item.url,
       description: (item.description || (item.descriptions?.[0]?.content) || '').replace(/\s+/g, ' ').trim()
     }))
@@ -584,7 +596,7 @@ async function generateTargetedAdaptiveQuestions({
     // 1. RAG query Microsoft Learn for official context
     const docs = await fetchMicrosoftLearnDocsApi(`${objCode} ${objDesc}`)
     const ragSnippet = docs.length > 0
-      ? "\nOFFICIAL MICROSOFT LEARN REFERENCE CONTEXT:\n" + docs.map((d: any) => `- ${d.title}: ${d.description}`).join('\n')
+      ? "\nOFFICIAL MICROSOFT LEARN REFERENCE CONTEXT:\n" + docs.map((d: any, idx: number) => `Reference Article ${idx+1}: "${d.title}" -> ${d.url}\nSummary: ${d.description}`).join('\n\n')
       : ""
 
     const prompt = `
@@ -603,6 +615,13 @@ STRICT TAXONOMY RULES (2024-2026):
 - 'Compliance Center' -> 'Microsoft Purview portal'
 - 'Endpoint Manager' -> 'Microsoft Intune'
 - 'Defender' -> 'Microsoft Defender XDR'
+
+EXPLANATION STRUCTURE REQUIREMENT (MEASUREUP STANDARD):
+Your 'explanation' field MUST be formatted in three clear markdown sections:
+1. **Solution Proof**: Authoritative technical proof explaining why the correct choice is right and meets all scenario constraints.
+2. **Distractor Analysis**: Detailed explanation explicitly refuting each incorrect option.
+3. **Official References**: Include 1 to 2 markdown links using the provided Microsoft Learn URLs with a 1-sentence key takeaway. Format:
+   - [Microsoft Learn: Article Title](URL) - 1-sentence technical takeaway.
 
 Respond strictly in JSON format matching this schema:
 ${typeConfig.schemaExample}
@@ -643,6 +662,12 @@ ${typeConfig.schemaExample}
           citations.push(...docs.slice(0, 2))
         }
 
+        // Guarantee references exist in the explanation text
+        let finalExplanation = (parsed.explanation || '').trim()
+        if (!finalExplanation.toLowerCase().includes('http') && citations.length > 0) {
+          finalExplanation += '\n\n**Official References:**\n' + citations.map((c: any) => `- [${c.title}](${c.url}) - ${c.description || 'Microsoft Learn documentation.'}`).join('\n')
+        }
+
         const newQData = {
           certification_id: certificationId,
           objective_id: targetObj.id && targetObj.id.length === 36 ? targetObj.id : null,
@@ -651,7 +676,7 @@ ${typeConfig.schemaExample}
           difficulty: parsed.difficulty || 2,
           options: parsed.options,
           correct_answers: parsed.correct_answers,
-          explanation: parsed.explanation,
+          explanation: finalExplanation,
           source: 'official',
           is_verified: true,
           is_adaptive: true,

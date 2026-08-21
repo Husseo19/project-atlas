@@ -35,19 +35,26 @@ def fetch_microsoft_learn_docs(query: str) -> List[CitationItem]:
                         continue
                     if '/credentials/certifications/resources/study-guides/' in u:
                         continue
-                    if u.endswith('/purview/purview') or u.endswith('/entra/identity/') or u.endswith('/intune/'):
+                    if '/training/paths/' in u:
                         continue
-                    if u.endswith('/microsoft-365/admin/') or u.endswith('/overview'):
+                    if any(x in u for x in ['/dotnet/', '/power-apps/', '/power-platform/', '/fabric/', '/azure/architecture/']):
                         continue
                     
-                    title = item.get('title', 'Microsoft Learn Documentation').replace(' - Microsoft Learn', '')
+                    # Exclude root landing directories (e.g. /entra/, /purview/)
+                    clean_path = re.sub(r'^https?://learn\.microsoft\.com/[a-z]{2}-[a-z]{2}/', '', u).strip('/')
+                    if len(clean_path.split('/')) < 2:
+                        continue
+                    if u.endswith('/overview') or u.endswith('/purview') or u.endsWith('/entra') or u.endsWith('/intune'):
+                        continue
+                    
+                    title = item.get('title', 'Microsoft Learn Documentation').replace(' - Microsoft Learn', '').replace(' | Microsoft Learn', '')
                     desc = item.get('description', '') or (item.get('descriptions', [{}])[0].get('content', '') if item.get('descriptions') else '')
                     citations.append(CitationItem(
                         title=title,
                         url=item.get('url', ''),
                         description=desc[:200].strip()
                     ))
-                    if len(citations) >= 2:
+                    if len(citations) >= 3:
                         break
                 return citations
     except Exception as e:
